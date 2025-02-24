@@ -38,8 +38,8 @@ class DiceGame:
         if player_name and player_name not in self.player_scores:
             self.player_scores[player_name] = self.target_score
             self.player_name_entry.delete(0, tk.END)
-            self.player_list_label.config(text=f"Players: {{', '.join(self.player_scores.keys())}}")
-            messagebox.showinfo("Player Added", f"{{player_name}} has been added!")
+            self.player_list_label.config(text=f"Players: {', '.join(self.player_scores.keys())}")
+            messagebox.showinfo("Player Added", f"{player_name} has been added!")
         else:
             messagebox.showwarning("Warning", "Invalid player name or player already exists!")
 
@@ -52,6 +52,7 @@ class DiceGame:
         self.current_score = 0
         self.locked_dice = []
         self.update_game_screen()
+        self.roll_dice()
 
     def roll_dice(self):
         roll = [random.randint(1, 6) for _ in range(5)]
@@ -65,7 +66,7 @@ class DiceGame:
         self.dice_frame.pack(pady=20)
         
         for i, die in enumerate(roll):
-            button = tk.Button(self.dice_frame, text=str(die), width=5, height=2,
+            button = tk.Button(self.dice_frame, text=str(die), width=5, height=2, 
                                command=lambda d=die: self.lock_dice(d, roll))
             button.grid(row=0, column=i, padx=5)
 
@@ -75,72 +76,80 @@ class DiceGame:
     def lock_dice(self, die, roll):
         if die not in self.locked_dice:
             self.locked_dice.append(die)
-            messagebox.showinfo("Dice Locked", f"You have locked in the die: {{die}}")
+            messagebox.showinfo("Dice Locked", f"You have locked in the die: {die}")
 
-            # Update scoring
             round_points = self.calculate_score(roll)
 
             if round_points > 0:
                 self.current_score += round_points
-                messagebox.showinfo("Score Update", f"Current Score: {{self.current_score}}")
-            else:
-                messagebox.showinfo("No Points Scored", "You didn't score any points with this roll. Turn ends.")
-                self.end_turn()
+                messagebox.showinfo("Score Update", f"Current Score: {self.current_score}")
+
+            if len(self.locked_dice) == 5:
+                self.end_turn()  # Automatically end turn if all dice are locked
+
         else:
             messagebox.showwarning("Warning", "You have already locked in this die.")
 
-        if len(self.locked_dice) == 5:
-            self.end_turn()  # Automatically end turn if all dice are locked
-
     def calculate_score(self, roll):
         score = 0
-        for die in roll:
-            if die == 1:
-                score += 100
-            elif die == 5:
-                score += 50
+        counts = {die: roll.count(die) for die in set(roll)}
+
+        # Individual scoring
+        score += counts.get(1, 0) * 100
+        score += counts.get(5, 0) * 50
+
+        # Three of a Kind & Full House
+        for die, count in counts.items():
+            if count >= 3:
+                score += die * 100
+                if die == 1:
+                    score += 700  # Bonus for three of a kind of '1's
+                if count > 3:
+                    score += die * 100  # Bonus for four of a kind
+                if count == 5:
+                    score += die * 1000  # Bonus for five of a kind
+            if count == 2 and list(counts.values()).count(3) > 0:
+                score += 1000  # Full House
+
+        # Check for Straight
+        if sorted(roll) == [1, 2, 3, 4, 5]:
+            score += 1500  # Straight score
+            
         return score
 
     def end_turn(self):
         self.player_scores[self.current_player] -= self.current_score
         if self.player_scores[self.current_player] <= 0:
-            messagebox.showinfo("Winner!", f"{{self.current_player}} wins!")
+            messagebox.showinfo("Winner!", f"{self.current_player} wins!")
             self.reset_game()
         else:
-            # Move to the next player
             players = list(self.player_scores.keys())
             current_index = players.index(self.current_player)
             self.current_player = players[(current_index + 1) % len(players)]
             self.update_game_screen()
-            self.locked_dice = []  # Reset locked dice for the next turn
-            self.current_score = 0  # Reset current score
-            messagebox.showinfo("Next Turn", f"{{self.current_player}}'s turn!")
-            self.roll_dice()  # Start the new player's turn
+            self.locked_dice = []
+            self.current_score = 0
+            messagebox.showinfo("Next Turn", f"{self.current_player}'s turn!")
+            self.roll_dice()
 
     def update_game_screen(self):
-        # Clear previous widgets
         for widget in self.master.winfo_children():
             widget.destroy()
 
-        # Create new game frame
-        self.score_label = tk.Label(self.master, text=f"{{self.current_player}}'s Turn!", font=('Arial', 16))
+        self.score_label = tk.Label(self.master, text=f"{self.current_player}'s Turn!", font=('Arial', 16))
         self.score_label.pack(pady=10)
 
-        # Display player scores
-        score_display = "\n".join([f"{{player}}: {{score}}" for player, score in self.player_scores.items()])
-        self.scores_label = tk.Label(self.master, text=f"Scores:\n{{score_display}}", font=('Arial', 14))
+        score_display = "\n".join([f"{player}: {score}" for player, score in self.player_scores.items()])
+        self.scores_label = tk.Label(self.master, text=f"Scores:\n{score_display}", font=('Arial', 14))
         self.scores_label.pack(pady=10)
 
-        # Roll button
         self.roll_button = tk.Button(self.master, text="Roll Dice", command=self.roll_dice, font=('Arial', 14))
         self.roll_button.pack(pady=10)
 
-        # Reset button
         self.reset_button = tk.Button(self.master, text="Reset Game", command=self.reset_game, font=('Arial', 14))
         self.reset_button.pack(pady=10)
 
     def reset_game(self):
-        # Reset all game data
         self.player_scores = {}
         self.current_player = None
         self.current_score = 0
