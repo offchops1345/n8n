@@ -1,0 +1,73 @@
+{
+  "instructions": [
+    {
+      "step": 1,
+      "title": "Prerequisites",
+      "details": [
+        "Set Up n8n: Ensure you have n8n set up and running. You can do this locally or using an n8n cloud instance.",
+        "API Keys: Sign up for OpenAI (DALL-E) and Google Cloud (Vision API) to get API keys."
+      ]
+    },
+    {
+      "step": 2,
+      "title": "Create a New Workflow in n8n",
+      "details": [
+        "Open your n8n editor.",
+        "Click on 'Create New' to start a new workflow."
+      ]
+    },
+    {
+      "step": 3,
+      "title": "Add Image Generation Using OpenAI DALL-E",
+      "details": [
+        "Add an HTTP Request node: Configure the node with POST method, and set the URL to 'https://api.openai.com/v1/images/generations'.\nSet authentication to Header Auth with your OpenAI API key.",
+        "Body Type: JSON. Set body parameters to include 'prompt', 'n', and 'size'. Replace 'prompt' with dynamic input."
+      ]
+    },
+    {
+      "step": 4,
+      "title": "Implement in n8n",
+      "details": [
+        "Set up output handling to capture the generated image URL in a Set node.",
+        "Ensure dynamic prompts build from workflow inputs to generate customized images."
+      ]
+    },
+    {
+      "step": 5,
+      "title": "Viewing and Regenerating Images",
+      "details": [
+        "Use a webhook or HTTP response node to provide an image preview link in the output.",
+        "Implement additional workflow logic prompting users to regenerate images based on their satisfaction."
+      ]
+    },
+    {
+      "step": 6,
+      "title": "Image Recognition Capabilities",
+      "details": [
+        "For image recognition, use Google Vision API: Add another HTTP request node to analyze generated images.",
+        "Pass generated image URLs to the Recognition API for analysis.",
+        "Configure authentication as before and set body parameters suitable for the Vision API."
+      ]
+    },
+    {
+      "step": 7,
+      "title": "Testing and Validation",
+      "details": [
+        "Save the workflow and test it for functionality."
+      ]
+    },
+    {
+      "step": 8,
+      "title": "Error Handling and Logging",
+      "details": [
+        "Implement error handling in n8n to log API failures and notify users of issues."
+      ]
+    }
+  ],
+  "additional_info": {
+    "API_Documentation": [
+      "OpenAI API: https://beta.openai.com/docs/api-reference/images/generate",
+      "Google Vision API: https://cloud.google.com/vision/docs/reference/rest"
+    ]
+  }
+}
