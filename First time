@@ -217,7 +217,8 @@ class UltimateDiceChallenge:
             self.game_screen()
         self.update_game_screen_elements()
         self.roll_button.config(state=tk.NORMAL)
-        messagebox.showinfo("Next Turn", f"{self.player_names_ordered[self.current_player_index]}"s turn!")
+        messagebox.showinfo("Next Turn", f"{self.player_names_ordered[self.current_player_index]}'s turn!")
+
 
     def roll_dice_action(self):
         if self.dice_in_play_count == 0 and sum(self.kept_dice_mask) == 5: # Hot dice condition
