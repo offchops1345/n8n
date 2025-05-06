@@ -168,7 +168,8 @@ class UltimateDiceChallenge:
         tk.Label(self.scores_display_frame, text="Scores:", font=("Arial", 14, "underline")).pack()
         for name in self.player_names_ordered:
             player_data = self.players[name]
-            score_text = f"{name}: {player_data["score"]} points, {player_data["dashes"]} dashes"
+            score_text = f'{name}: {player_data["score"]} points, {player_data["dashes"]} dashes'
+
             tk.Label(self.scores_display_frame, text=score_text, font=("Arial", 12)).pack()
 
     def update_dice_display(self):
