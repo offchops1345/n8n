@@ -183,7 +183,8 @@ class UltimateDiceChallenge:
                 if img:
                     btn.config(image=img, text="", width=50, height=50) # Use image if available
                 else:
-                    btn.config(text=str(val), image=", width=6, height=2, font=("Arial", 12)) # Fallback to text
+                    btn.config(text=str(val), image="", width=6, height=2, font=("Arial", 12))  # Fallback to text
+
                 btn.config(state=tk.NORMAL)
                 if self.kept_dice_mask[i]:
                     btn.config(relief=tk.SUNKEN, bg="lightgreen")
