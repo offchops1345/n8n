@@ -138,7 +138,8 @@ class UltimateDiceChallenge:
         self.is_first_roll_of_turn = True
         self.segment_score = 0
         self.update_ui_for_new_turn()
-        messagebox.showinfo("Next Turn", f"{self.player_names_ordered[self.current_player_index]}"s turn!")
+        messagebox.showinfo("Next Turn", f"{self.player_names_ordered[self.current_player_index]}'s turn!")
+
 
     def update_ui_for_new_turn(self):
         self.update_game_screen_elements()
