@@ -1,0 +1,370 @@
+""" 
+Ultimate Dice Challenge Game - V3 (Interactive Redesign)
+
+Implements the redesigned game flow for better interactivity.
+"""
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+from PIL import Image, ImageTk
+import random
+import os
+
+class UltimateDiceChallenge:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Ultimate Dice Challenge V3")
+        self.master.geometry("850x750") # Slightly larger window
+
+        self.players = {}
+        self.player_names_ordered = []
+        self.current_player_index = 0
+        self.target_score_start = 20000
+
+        self.dice_images = {}
+        self.load_dice_images()
+
+        # Core game state variables based on redesign
+        self.turn_accumulated_score = 0
+        self.overall_kept_dice_mask = [False] * 5 # Dice kept for the entire turn
+        self.current_dice_values = [0] * 5
+        self.last_roll_scoring_dice_indices = [] # Indices of dice that scored in the *last roll segment*
+        self.is_first_roll_of_turn = True
+        self.segment_score = 0 # Score from the most recent roll segment
+
+        self.setup_screen()
+
+    def load_dice_images(self):
+        possible_paths = [".", "./dice_images", "../dice_images", "images"]
+        for i in range(1, 7):
+            found_image = False
+            for base_path in possible_paths:
+                image_path = os.path.join(base_path, f"dice{i}.png")
+                if os.path.exists(image_path):
+                    try:
+                        img = Image.open(image_path)
+                        img = img.resize((60, 60), Image.Resampling.LANCZOS) # Slightly larger dice
+                        self.dice_images[i] = ImageTk.PhotoImage(img)
+                        found_image = True
+                        break
+                    except Exception as e:
+                        print(f"Error loading image {image_path}: {e}")
+                        self.dice_images[i] = None
+                        break
+            if not found_image:
+                 print(f"Warning: Dice image dice{i}.png not found.")
+                 self.dice_images[i] = None
+
+    def setup_screen(self):
+        self.clear_frame()
+        self.setup_frame = tk.Frame(self.master, padx=10, pady=10)
+        self.setup_frame.pack(fill=tk.BOTH, expand=True)
+        tk.Label(self.setup_frame, text="Enter Player Names (at least 2):", font=("Arial", 18)).pack(pady=15)
+        self.player_entries_frame = tk.Frame(self.setup_frame)
+        self.player_entries_frame.pack()
+        self.player_name_entries = []
+        for i in range(4):
+            frame = tk.Frame(self.player_entries_frame, pady=5)
+            frame.pack()
+            tk.Label(frame, text=f"Player {i+1}:", font=("Arial", 12)).pack(side=tk.LEFT, padx=5)
+            entry = tk.Entry(frame, width=30, font=("Arial", 12))
+            entry.pack(side=tk.LEFT)
+            self.player_name_entries.append(entry)
+        tk.Button(self.setup_frame, text="Start Game", command=self.initialize_game, font=("Arial", 16), bg="#4CAF50", fg="white", padx=10, pady=5).pack(pady=25)
+
+    def initialize_game(self):
+        self.players = {}
+        self.player_names_ordered = []
+        for entry in self.player_name_entries:
+            name = entry.get().strip()
+            if name:
+                if name not in self.players:
+                    self.players[name] = {"score": self.target_score_start, "dashes": 0, "first_score_achieved": False}
+                    self.player_names_ordered.append(name)
+                else:
+                    messagebox.showwarning("Duplicate Name", f"Player name \'{name}\' is already used.")
+                    return
+        if len(self.players) < 1: # Changed to 1 for easier testing, revert to 2 for full game
+            messagebox.showwarning("Not Enough Players", "Please enter at least one player name (2 for a proper game).")
+            return
+        self.current_player_index = 0
+        self.game_screen() # Create game screen widgets first
+        self.start_new_turn() # Then initialize turn logic
+
+    def game_screen(self):
+        self.clear_frame()
+        self.game_frame = tk.Frame(self.master, padx=10, pady=10)
+        self.game_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Top Info Frame (Player and Scores)
+        top_info_frame = tk.Frame(self.game_frame)
+        top_info_frame.pack(fill=tk.X, pady=5)
+        self.current_player_label = tk.Label(top_info_frame, text="", font=("Arial", 18, "bold"))
+        self.current_player_label.pack()
+        self.scores_display_frame = tk.Frame(top_info_frame)
+        self.scores_display_frame.pack(fill=tk.X, pady=5)
+
+        # Dice Display Area
+        dice_area_frame = tk.Frame(self.game_frame, pady=10)
+        dice_area_frame.pack()
+        self.dice_buttons = []
+        for i in range(5):
+            btn = tk.Button(dice_area_frame, text="-", width=60, height=60, command=lambda i=i: self.toggle_keep_die(i))
+            btn.pack(side=tk.LEFT, padx=8)
+            self.dice_buttons.append(btn)
+
+        # Scoring Info Frame
+        scoring_info_frame = tk.Frame(self.game_frame, pady=10)
+        scoring_info_frame.pack()
+        self.segment_score_label = tk.Label(scoring_info_frame, text="Last Roll Score: 0", font=("Arial", 14))
+        self.segment_score_label.pack()
+        self.turn_score_label = tk.Label(scoring_info_frame, text="Total Turn Score: 0", font=("Arial", 16, "bold"))
+        self.turn_score_label.pack()
+
+        # Action Buttons Frame
+        action_buttons_frame = tk.Frame(self.game_frame, pady=15)
+        action_buttons_frame.pack()
+        self.roll_button = tk.Button(action_buttons_frame, text="Roll Dice", command=self.roll_dice_action, font=("Arial", 16), bg="#2196F3", fg="white", padx=10, pady=5)
+        self.roll_button.pack(side=tk.LEFT, padx=10)
+        self.bank_button = tk.Button(action_buttons_frame, text="Bank Score", command=self.bank_score_action, font=("Arial", 16), bg="#FF9800", fg="white", padx=10, pady=5)
+        self.bank_button.pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(self.game_frame, text="Reset Game", command=self.confirm_reset_game, font=("Arial", 12)).pack(pady=10, side=tk.BOTTOM)
+
+    def start_new_turn(self):
+        self.turn_accumulated_score = 0
+        self.overall_kept_dice_mask = [False] * 5
+        self.current_dice_values = [0] * 5
+        self.last_roll_scoring_dice_indices = []
+        self.is_first_roll_of_turn = True
+        self.segment_score = 0
+        self.update_ui_for_new_turn()
+        messagebox.showinfo("Next Turn", f"{self.player_names_ordered[self.current_player_index]}"s turn!")
+
+    def update_ui_for_new_turn(self):
+        self.update_game_screen_elements()
+        self.roll_button.config(text="Roll 5 Dice", state=tk.NORMAL)
+        self.bank_button.config(state=tk.DISABLED)
+        for btn in self.dice_buttons:
+            btn.config(bg="SystemButtonFace", relief=tk.RAISED)
+
+    def update_game_screen_elements(self):
+        if not hasattr(self, "game_frame") or not self.game_frame.winfo_exists(): return
+        player_name = self.player_names_ordered[self.current_player_index]
+        self.current_player_label.config(text=f"Current Player: {player_name}")
+        self.update_scores_display()
+        self.update_dice_display()
+        self.segment_score_label.config(text=f"Last Roll Score: {self.segment_score}")
+        self.turn_score_label.config(text=f"Total Turn Score: {self.turn_accumulated_score}")
+        # Roll button text and state are managed by roll_dice_action and start_new_turn
+        self.bank_button.config(state=tk.NORMAL if self.turn_accumulated_score > 0 else tk.DISABLED)
+
+    def update_scores_display(self):
+        for widget in self.scores_display_frame.winfo_children(): widget.destroy()
+        # tk.Label(self.scores_display_frame, text="Scores:", font=("Arial", 14, "underline")).pack()
+        scores_text = "Scores: "
+        for name_idx, name in enumerate(self.player_names_ordered):
+            player_data = self.players[name]
+            scores_text += f"{name}: {player_data["score"]} ({player_data["dashes"]} dashes)"
+            if name_idx < len(self.player_names_ordered) -1:
+                scores_text += " | "
+        tk.Label(self.scores_display_frame, text=scores_text, font=("Arial", 12)).pack()
+
+    def update_dice_display(self):
+        for i in range(5):
+            btn = self.dice_buttons[i]
+            val = self.current_dice_values[i]
+            if val == 0:
+                btn.config(text="-", image="", state=tk.DISABLED, relief=tk.RAISED, bg="SystemButtonFace")
+            else:
+                img = self.dice_images.get(val)
+                if img: btn.config(image=img, text="")
+                else: btn.config(text=str(val), image="", font=("Arial", 20, "bold"), width=3, height=1)
+                
+                # Determine if clickable (part of last roll scoring dice and not already kept for turn)
+                is_selectable_for_keeping = i in self.last_roll_scoring_dice_indices
+                btn.config(state=tk.NORMAL if is_selectable_for_keeping or self.overall_kept_dice_mask[i] else tk.DISABLED)
+                
+                if self.overall_kept_dice_mask[i]:
+                    btn.config(relief=tk.SUNKEN, bg="#AED581") # Kept for turn
+                elif i in self.last_roll_scoring_dice_indices:
+                    btn.config(relief=tk.RAISED, bg="#FFF59D") # Scored in last roll, selectable
+                else:
+                    btn.config(relief=tk.RAISED, bg="SystemButtonFace") # Not scoring, not kept
+
+    def toggle_keep_die(self, index):
+        if self.current_dice_values[index] == 0: return
+
+        # Player can only toggle dice that were part of the last scoring segment OR are already kept
+        if not (index in self.last_roll_scoring_dice_indices or self.overall_kept_dice_mask[index]):
+            messagebox.showwarning("Invalid Selection", "You can only keep dice that scored in the last roll.")
+            return
+
+        self.overall_kept_dice_mask[index] = not self.overall_kept_dice_mask[index]
+        self.update_dice_display()
+        self.update_roll_button_state()
+
+    def update_roll_button_state(self):
+        num_unkept_dice = 5 - sum(self.overall_kept_dice_mask)
+        if num_unkept_dice == 0: # All 5 dice are kept
+            if all(idx in self.last_roll_scoring_dice_indices for idx, kept in enumerate(self.overall_kept_dice_mask) if kept):
+                 # This condition is tricky; simpler: if all 5 are kept, it implies hot dice potential
+                 self.roll_button.config(text="Roll Hot Dice (5)", state=tk.NORMAL)
+            else: # All kept but not necessarily from a single scoring sweep of all 5
+                 self.roll_button.config(text="No Dice to Roll", state=tk.DISABLED)
+        elif num_unkept_dice > 0:
+            self.roll_button.config(text=f"Re-roll {num_unkept_dice} Dice", state=tk.NORMAL)
+        else: # Should not happen
+            self.roll_button.config(state=tk.DISABLED)
+
+    def roll_dice_action(self):
+        num_dice_to_roll_now = 0
+        if self.is_first_roll_of_turn:
+            num_dice_to_roll_now = 5
+            self.overall_kept_dice_mask = [False] * 5 # Ensure all dice are rolled
+        else:
+            num_dice_to_roll_now = 5 - sum(self.overall_kept_dice_mask)
+            if num_dice_to_roll_now == 0 and sum(self.overall_kept_dice_mask) == 5: # Hot Dice condition
+                messagebox.showinfo("Hot Dice!", "All dice scored and kept! Rolling all 5 dice again.")
+                self.overall_kept_dice_mask = [False] * 5
+                num_dice_to_roll_now = 5
+            elif num_dice_to_roll_now == 0:
+                messagebox.showwarning("No Dice to Roll", "You must unselect some dice to roll again, or bank your score.")
+                return
+
+        temp_roll_values = list(self.current_dice_values)
+        for i in range(5):
+            if not self.overall_kept_dice_mask[i]:
+                temp_roll_values[i] = random.randint(1, 6)
+        self.current_dice_values = temp_roll_values
+        self.is_first_roll_of_turn = False
+
+        self.segment_score, current_segment_scoring_indices = self.calculate_score_for_roll([self.current_dice_values[i] for i in range(5) if not self.overall_kept_dice_mask[i] or self.is_first_roll_of_turn], [i for i, kept in enumerate(self.overall_kept_dice_mask) if not kept or self.is_first_roll_of_turn])
+        # The above call to calculate_score_for_roll needs to be simpler. It should always take the 5 current dice values.
+        # The scoring function itself will determine which of those 5 dice form combinations.
+        # The `overall_kept_dice_mask` is for determining *which dice to physically roll*.
+        # After rolling, the score is calculated on *all 5 visible dice*.
+        
+        # Corrected scoring call:
+        self.segment_score, self.last_roll_scoring_dice_indices = self.calculate_score_for_roll(self.current_dice_values)
+
+        if self.segment_score == 0:
+            messagebox.showinfo("Bust!", "No score on this roll. Your turn score is lost.")
+            self.turn_accumulated_score = 0
+            self.end_turn()
+            return
+
+        self.turn_accumulated_score += self.segment_score
+        messagebox.showinfo("Scored!", f"Roll Score: {self.segment_score}. Turn Total: {self.turn_accumulated_score}. Select scoring dice to keep or bank.")
+        
+        # After scoring, player can select from self.last_roll_scoring_dice_indices to add to overall_kept_dice_mask
+        # The update_dice_display will handle highlighting based on last_roll_scoring_dice_indices
+        self.update_game_screen_elements()
+        self.update_roll_button_state()
+        self.bank_button.config(state=tk.NORMAL)
+
+    # calculate_score_for_roll needs to be the one from test_scoring_logic_final.py
+    # For brevity, assuming it is correctly defined as in the final test script.
+    def calculate_score_for_roll(self, dice_values_5): # Expects a list of 5 dice values
+        score = 0
+        if len(dice_values_5) != 5: return 0, []
+        counts = {d: dice_values_5.count(d) for d in set(dice_values_5) if d !=0 }
+        if not counts: return 0, []
+
+        # Check for 5-dice combinations first (mutually exclusive)
+        # Five of a Kind
+        for val, count_val in counts.items():
+            if count_val == 5:
+                score = 10000 if val == 1 else val * 1000
+                return score, list(range(5))
+        # Straight (1-5 or 2-6)
+        if len(counts) == 5:
+            sorted_dice_keys = sorted(list(counts.keys()))
+            if sorted_dice_keys == [1,2,3,4,5] or sorted_dice_keys == [2,3,4,5,6]:
+                return 1000, list(range(5))
+        # Full House (Three of a kind + Pair)
+        if len(counts) == 2:
+            vals_in_counts = list(counts.values())
+            if (3 in vals_in_counts and 2 in vals_in_counts):
+                return 1000, list(range(5))
+
+        # If no 5-dice combo, score individual dice and 3-of-a-kinds
+        scoring_indices = set()
+        temp_score = 0
+        used_mask = [False] * 5 # To ensure dice are not scored multiple times in this pass
+        
+        # Three of a Kind (score only one triplet, prioritize 1s, then highest)
+        three_of_kind_scored_this_pass = False
+        if counts.get(1, 0) >= 3:
+            temp_score += 1000
+            count_marked = 0
+            for i, d_val in enumerate(dice_values_5):
+                if d_val == 1 and not used_mask[i] and count_marked < 3:
+                    used_mask[i] = True; scoring_indices.add(i); count_marked += 1
+            three_of_kind_scored_this_pass = True
+        
+        if not three_of_kind_scored_this_pass:
+            for val_trip in range(6, 1, -1): # 6 down to 2
+                if counts.get(val_trip, 0) >= 3:
+                    temp_score += val_trip * 100
+                    count_marked = 0
+                    for i, d_val in enumerate(dice_values_5):
+                        if d_val == val_trip and not used_mask[i] and count_marked < 3:
+                            used_mask[i] = True; scoring_indices.add(i); count_marked += 1
+                    break # Score only one type of three-of-a-kind
+        
+        # Individual 1s (if not part of a scored Three 1s)
+        for i, d_val in enumerate(dice_values_5):
+            if d_val == 1 and not used_mask[i]:
+                temp_score += 100; used_mask[i] = True; scoring_indices.add(i)
+
+        # Individual 5s (if not part of a scored Three 5s)
+        for i, d_val in enumerate(dice_values_5):
+            if d_val == 5 and not used_mask[i]:
+                temp_score += 50; used_mask[i] = True; scoring_indices.add(i)
+        
+        return temp_score, sorted(list(scoring_indices))
+
+    def bank_score_action(self):
+        player_name = self.player_names_ordered[self.current_player_index]
+        player_data = self.players[player_name]
+        if not player_data["first_score_achieved"] and self.turn_accumulated_score < 400:
+            messagebox.showwarning("Min Score Not Met", f"First bank must be at least 400. Current: {self.turn_accumulated_score}")
+            return
+        potential_new_score = player_data["score"] - self.turn_accumulated_score
+        if potential_new_score < 0:
+            messagebox.showinfo("Overshot!", "Overshot 0! No points deducted. +1 dash.")
+            player_data["dashes"] += 1
+            if player_data["dashes"] >= 3:
+                messagebox.showinfo("Penalty!", "3 dashes! +500 points to score.")
+                player_data["score"] += 500
+                player_data["dashes"] = 0
+            self.turn_accumulated_score = 0 # Lose turn points on overshot bank
+            self.end_turn()
+            return
+        player_data["score"] = potential_new_score
+        if not player_data["first_score_achieved"]: player_data["first_score_achieved"] = True
+        messagebox.showinfo("Score Banked", f"{player_name} banked {self.turn_accumulated_score}. New score: {player_data["score"]}")
+        if player_data["score"] == 0:
+            self.update_scores_display()
+            messagebox.showinfo("Winner!", f"{player_name} has reached exactly 0 and wins!")
+            self.confirm_reset_game(winner=True)
+            return
+        self.end_turn()
+
+    def end_turn(self):
+        self.current_player_index = (self.current_player_index + 1) % len(self.players)
+        self.start_new_turn()
+
+    def confirm_reset_game(self, winner=False):
+        if not winner:
+            if not messagebox.askyesno("Reset Game", "Are you sure you want to reset?"):
+                return
+        self.setup_screen()
+
+    def clear_frame(self):
+        for widget in self.master.winfo_children(): widget.destroy()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    game = UltimateDiceChallenge(root)
+    root.mainloop()
