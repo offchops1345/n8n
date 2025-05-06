@@ -176,7 +176,8 @@ class UltimateDiceChallenge:
             btn = self.dice_buttons[i]
             val = self.current_dice_values[i]
             if val == 0:
-                btn.config(text="-", image=", state=tk.DISABLED, relief=tk.RAISED, bg="SystemButtonFace", width=50, height=50)
+                btn.config(text="-", image="", state=tk.DISABLED, relief=tk.RAISED, bg="SystemButtonFace", width=50, height=50)
+
             else:
                 img = self.dice_images.get(val)
                 if img:
