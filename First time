@@ -344,7 +344,8 @@ class UltimateDiceChallenge:
         
         player_data["score"] = potential_new_score
         if not player_data["first_score_achieved"]: player_data["first_score_achieved"] = True
-        messagebox.showinfo("Score Banked", f"{player_name} banked {self.turn_accumulated_score} points. New score: {player_data["score"]}")
+        messagebox.showinfo("Score Banked", f"{player_name} banked {self.turn_accumulated_score} points. New score: {player_data['score']}")
+
         
         if player_data["score"] == 0:
             self.update_scores_display()
